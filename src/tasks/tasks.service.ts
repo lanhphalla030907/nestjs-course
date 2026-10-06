@@ -1,44 +1,119 @@
 // src/tasks/tasks.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
-
-export interface Task {
-  id: number;
-  title: string;
-  description?: string;
-  done: boolean;
-}
-
+import { PrismaService } from '../prisma/prisma.service';
+import { UpdateTaskDto } from './dto/update-task.dto';
 @Injectable()
 export class TasksService {
-  private tasks: Task[] = [];
-  private nextId = 1;
-
-  findAll(): Task[] {
-    return this.tasks;
+  constructor(private readonly prisma: PrismaService) {}
+  async findAll(userId:number,page = 1, limit = 10, completed?: boolean, search?: string) {
+    const skip = (page - 1) * limit;
+    const where: {
+      userId: number;
+      completed?: boolean;
+      OR?: {
+        title?: {
+          contains: string;
+          mode: 'insensitive';
+        };
+        description?: {
+          contains: string;
+          mode: 'insensitive';
+        };
+      }[];
+    } = {userId}; //User 1 មិនអាចឃើញ Task របស់ User 2 ទេ
+    if (completed !== undefined) {
+      where.completed = completed;
+    }
+    if (search) {
+      where.OR = [
+        {
+          title: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+        {
+          description: {
+            contains: search,
+            mode: 'insensitive',
+          },
+        },
+      ];
+    }
+    const [tasks, total] = await Promise.all([
+      this.prisma.task.findMany({
+        skip,
+        take: limit,
+        where,
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+      this.prisma.task.count({
+        where,
+      }),
+    ]);
+    const totalPages = Math.ceil(total / limit);
+    return {
+      data: tasks,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
+    };
   }
-
-  findOne(id: number): Task {
-    const task = this.tasks.find((t) => t.id === id);
-    if (!task) throw new NotFoundException(`Task ${id} not found`);
-    return task;
+  async findOne(id: number,userId:number) {
+    const result = await this.prisma.task.findUnique({
+      where: {
+        id,
+        userId
+      },
+    });
+    if (!result) {
+      throw new NotFoundException(`Task ${id} not found`);
+    }
+    return result;
   }
-
-  create(data: { title: string; description?: string }): Task {
-    const task: Task = { id: this.nextId++, done: false, ...data };
-    this.tasks.push(task);
-    return task;
+  async create(userId:number,title: string, description?: string) {
+    return this.prisma.task.create({
+      data: {
+        userId,
+        title,
+        description,
+      },
+    });
   }
-
-  update(id: number, data: Partial<Pick<Task, 'title' | 'description' | 'done'>>): Task {
-    const task = this.findOne(id);
-    Object.assign(task, data);
-    return task;
+  async update(id: number, updateTaskDto: UpdateTaskDto,userId:number) {
+    const task = await this.prisma.task.findFirst({
+      where : {
+        id,userId,
+      },
+    });
+    if(!task){
+      throw new NotFoundException(`Task ${id} not found`);
+    }
+    return this.prisma.task.update({
+      where :{
+        id,
+      },
+      data : updateTaskDto,
+    });
   }
-
-  remove(id: number): { removed: true } {
-    const index = this.tasks.findIndex((t) => t.id === id);
-    if (index === -1) throw new NotFoundException(`Task ${id} not found`);
-    this.tasks.splice(index, 1);
-    return { removed: true };
+  async remove(id: number, userId:number) {
+    const task = await this.prisma.task.findFirst({
+      where : {
+        id,userId,
+      },
+    });
+   if(!task){
+    throw new NotFoundException(`Task ${id} not found`);
+   }
+   return this.prisma.task.delete({
+    where : {
+      id,
+    }
+   })
   }
 }
