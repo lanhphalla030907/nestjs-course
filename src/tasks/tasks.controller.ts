@@ -3,14 +3,19 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-
+import { Role } from '../generated/prisma/client.js';
+import { Roles } from '../auth/decorators/role.decorators.js';
+import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { TasksService } from './tasks.service.js';
 import { CreateTaskDto } from './dto/create-task.dto.js';
 import { UpdateTaskDto } from './dto/update-task.dto.js';
@@ -21,9 +26,10 @@ import { AuthUser } from '../auth/types/auth-user.type.js';
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly taskService: TasksService) {}
+  @HttpCode(HttpStatus.CREATED)
   @Post()
   create(
-    @Req() req: Request & {user:AuthUser},
+    @Req() req: Request & { user: AuthUser },
     @Body() createTaskDto: CreateTaskDto,
   ) {
     return this.taskService.create(
@@ -32,10 +38,19 @@ export class TasksController {
       createTaskDto.description,
     );
   }
+  //api for the admin only 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @Get('admin-test')
+  adminTest() {
+    return {
+      message: 'You are an ADMIN',
+    };
+  }
   @Get()
   findAll(
-    @Req() req: Request & {user:AuthUser},
-    @Query() query: TaskQueryDto
+    @Req() req: Request & { user: AuthUser },
+    @Query() query: TaskQueryDto,
   ) {
     return this.taskService.findAll(
       req.user.userId,
@@ -43,31 +58,24 @@ export class TasksController {
       query.limit,
       query.completed,
       query.search,
+      query.sortBy,
+      query.sortOrder,
     );
   }
   @Get(':id')
-  findOne(
-    @Param('id') id: string,
-    @Req() req: Request & { user: AuthUser },
-) {
-    return this.taskService.findOne(Number(id),req.user.userId);
+  findOne(@Param('id', ParseIntPipe) id: string, @Req() req: Request & { user: AuthUser }) {
+    return this.taskService.findOne(Number(id), req.user.userId);
   }
   @Patch(':id')
-  update(@Param('id') id: string, 
-  @Body() updateTaskDto: UpdateTaskDto,
-  @Req() req: Request & { user: AuthUser },
-   ) {
-    return this.taskService.update(
-      Number(id),
-      updateTaskDto,
-      req.user.userId,
-    );
+  update(
+    @Param('id') id: string,
+    @Body() updateTaskDto: UpdateTaskDto,
+    @Req() req: Request & { user: AuthUser },
+  ) {
+    return this.taskService.update(Number(id), updateTaskDto, req.user.userId);
   }
   @Delete(':id')
-  delete(
-    @Param('id') id: string,
-    @Req() req:Request & {user:AuthUser},
-  ) {
-    return this.taskService.remove(Number(id),req.user.userId);
+  delete(@Param('id') id: string, @Req() req: Request & { user: AuthUser }) {
+    return this.taskService.remove(Number(id), req.user.userId);
   }
 }

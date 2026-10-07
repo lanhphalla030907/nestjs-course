@@ -5,7 +5,15 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 @Injectable()
 export class TasksService {
   constructor(private readonly prisma: PrismaService) {}
-  async findAll(userId:number,page = 1, limit = 10, completed?: boolean, search?: string) {
+  async findAll(
+    userId: number,
+    page = 1,
+    limit = 10,
+    completed?: boolean,
+    search?: string,
+    sortBy: string = 'createdAt',
+    sortOrder: 'asc' | 'desc' = 'desc',
+  ) {
     const skip = (page - 1) * limit;
     const where: {
       userId: number;
@@ -20,7 +28,7 @@ export class TasksService {
           mode: 'insensitive';
         };
       }[];
-    } = {userId}; //User 1 មិនអាចឃើញ Task របស់ User 2 ទេ
+    } = { userId }; //User 1 មិនអាចឃើញ Task របស់ User 2 ទេ
     if (completed !== undefined) {
       where.completed = completed;
     }
@@ -46,7 +54,7 @@ export class TasksService {
         take: limit,
         where,
         orderBy: {
-          createdAt: 'desc',
+          [sortBy]: sortOrder,
         },
       }),
       this.prisma.task.count({
@@ -64,11 +72,11 @@ export class TasksService {
       },
     };
   }
-  async findOne(id: number,userId:number) {
+  async findOne(id: number, userId: number) {
     const result = await this.prisma.task.findUnique({
       where: {
         id,
-        userId
+        userId,
       },
     });
     if (!result) {
@@ -76,7 +84,7 @@ export class TasksService {
     }
     return result;
   }
-  async create(userId:number,title: string, description?: string) {
+  async create(userId: number, title: string, description?: string) {
     return this.prisma.task.create({
       data: {
         userId,
@@ -85,35 +93,37 @@ export class TasksService {
       },
     });
   }
-  async update(id: number, updateTaskDto: UpdateTaskDto,userId:number) {
+  async update(id: number, updateTaskDto: UpdateTaskDto, userId: number) {
     const task = await this.prisma.task.findFirst({
-      where : {
-        id,userId,
+      where: {
+        id,
+        userId,
       },
     });
-    if(!task){
+    if (!task) {
       throw new NotFoundException(`Task ${id} not found`);
     }
     return this.prisma.task.update({
-      where :{
+      where: {
         id,
       },
-      data : updateTaskDto,
+      data: updateTaskDto,
     });
   }
-  async remove(id: number, userId:number) {
+  async remove(id: number, userId: number) {
     const task = await this.prisma.task.findFirst({
-      where : {
-        id,userId,
+      where: {
+        id,
+        userId,
       },
     });
-   if(!task){
-    throw new NotFoundException(`Task ${id} not found`);
-   }
-   return this.prisma.task.delete({
-    where : {
-      id,
+    if (!task) {
+      throw new NotFoundException(`Task ${id} not found`);
     }
-   })
+    return this.prisma.task.delete({
+      where: {
+        id,
+      },
+    });
   }
 }
