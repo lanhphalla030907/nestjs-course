@@ -8,7 +8,7 @@ export class UpdateTaskDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(500)
+  @MaxLength(5000)
   description?: string;
 
   @IsOptional()
